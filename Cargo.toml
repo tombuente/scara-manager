@@ -1,0 +1,10 @@
+
+[package]
+name = "scara-manager"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+eframe = { version = "0.27.2", features = ["default"] }
+egui_extras = { version = "0.27.2", features = ["default"] }
+env_logger = { version = "0.11.3", default-features = false, features = ["auto-color", "humantime"]}
