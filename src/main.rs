@@ -11,12 +11,41 @@ fn main() -> Result<(), eframe::Error> {
     eframe::run_native(
         "Scara Manager",
         options,
-        Box::new(|_cc| Box::<MyApp>::default()),
+        Box::new(|_cc| Box::<App>::default()),
     )
 }
 
-struct MyApp {
-    step_command: StepCommand,
+pub trait View {
+    fn name(&self) -> &'static str;
+
+    fn show(&mut self, ctx: &egui::Context, open: &mut bool);
+    fn ui(&mut self, ui: &mut egui::Ui);
+}
+
+struct App {
+    step_command_builder: bool,
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self {
+            step_command_builder: true,
+        }
+    }
+}
+
+impl eframe::App for App {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        StepControl::default().show(ctx, &mut self.step_command_builder);
+
+        egui::CentralPanel::default().show(ctx, |_ui| {});
+    }
+}
+
+
+
+pub struct StepControl {
+    command: StepCommand,
 }
 
 struct StepCommand {
@@ -24,10 +53,10 @@ struct StepCommand {
     j2: i64,
 }
 
-impl Default for MyApp {
+impl Default for StepControl {
     fn default() -> Self {
         Self {
-            step_command: StepCommand::default(),
+            command: StepCommand::default(),
         }
     }
 }
@@ -38,51 +67,55 @@ impl Default for StepCommand {
     }
 }
 
-impl eframe::App for MyApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::Window::new("Step Command Builder")
-            .movable(false)
-            .show(ctx, |ui| {
-                egui::Grid::new("controls").striped(true).show(ui, |ui| {
-                    if ui
-                        .button(egui::RichText::new("+").family(egui::FontFamily::Monospace))
-                        .clicked()
-                    {
-                        self.step_command.j1 += 1;
-                    };
-                    if ui
-                        .button(egui::RichText::new("+").family(egui::FontFamily::Monospace))
-                        .clicked()
-                    {
-                        self.step_command.j2 += 1;
-                    };
-                    ui.end_row();
+impl View for StepControl {
+    fn name(&self) -> &'static str {
+        "Step Command Builder"
+    }
 
-                    ui.label("J1");
-                    ui.label("J2");
-                    ui.end_row();
+    fn show(&mut self, ctx: &egui::Context, open: &mut bool) {
+        egui::Window::new("Step Command Builder").open(open).show(ctx, |ui| {
+            self.ui(ui);
+        });
+    }
 
-                    if ui
-                        .button(egui::RichText::new("-").family(egui::FontFamily::Monospace))
-                        .clicked()
-                    {
-                        self.step_command.j1 -= 1;
-                    };
-                    if ui
-                        .button(egui::RichText::new("-").family(egui::FontFamily::Monospace))
-                        .clicked()
-                    {
-                        self.step_command.j2 -= 1;
-                    };
-                    ui.end_row();
-                });
+    fn ui(&mut self, ui: &mut egui::Ui) {
+        egui::Grid::new("controls").striped(true).show(ui, |ui| {
+            if ui
+                .button(egui::RichText::new("+").family(egui::FontFamily::Monospace))
+                .clicked()
+            {
+                self.command.j1 += 1;
+            };
+            if ui
+                .button(egui::RichText::new("+").family(egui::FontFamily::Monospace))
+                .clicked()
+            {
+                self.command.j2 += 1;
+            };
+            ui.end_row();
 
-                ui.code(format!(
-                    "move_steps j1={} j2={}",
-                    self.step_command.j1, self.step_command.j2
-                ));
-            });
+            ui.label("J1");
+            ui.label("J2");
+            ui.end_row();
 
-        egui::CentralPanel::default().show(ctx, |_ui| {});
+            if ui
+                .button(egui::RichText::new("-").family(egui::FontFamily::Monospace))
+                .clicked()
+            {
+                self.command.j1 -= 1;
+            };
+            if ui
+                .button(egui::RichText::new("-").family(egui::FontFamily::Monospace))
+                .clicked()
+            {
+                self.command.j2 -= 1;
+            };
+            ui.end_row();
+        });
+
+        ui.code(format!(
+            "move_steps j1={} j2={}",
+            self.command.j1, self.command.j2
+        ));
     }
 }
