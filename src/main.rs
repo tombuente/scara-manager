@@ -12,6 +12,6 @@ fn main() -> Result<(), eframe::Error> {
     eframe::run_native(
         "Scara Manager",
         options,
-        Box::new(|_cc| Box::<App>::default()),
+        Box::new(|cc| Box::new(App::new(cc))),
     )
 }

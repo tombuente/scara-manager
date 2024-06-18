@@ -1,0 +1,3 @@
+[submodule "scara-proto"]
+	path = scara-proto
+	url = https://github.com/tombuente/scara-proto

@@ -1,4 +1,10 @@
+mod proto {
+    tonic::include_proto!("scaraproto");
+}
+
 use eframe::egui;
+use proto::scara_client::ScaraClient;
+use std::sync::{Arc, Mutex};
 
 trait Model {
     fn name(&self) -> &'static str;
@@ -11,15 +17,11 @@ pub struct App {
     state: State,
 
     model_handler: ModelHandler,
-}
 
-impl Default for App {
-    fn default() -> Self {
-        Self {
-            state: State::default(),
-            model_handler: ModelHandler::default(),
-        }
-    }
+    // gRPC
+    client: ScaraClient<tonic::transport::Channel>,
+    runtime: tokio::runtime::Runtime,
+    response: Arc<Mutex<String>>,
 }
 
 impl eframe::App for App {
@@ -32,6 +34,14 @@ impl eframe::App for App {
             });
 
         egui::CentralPanel::default().show(ctx, |ui| {
+            ui.spacing();
+            ui.label("Response form server:");
+            ui.label(format!("{}", *self.response.lock().unwrap()));
+
+            if ui.button("Ping").clicked() {
+                self.spawn_upload_program_grpc();
+            }
+
             for cmd in &self.state.program {
                 ui.code(cmd);
             }
@@ -42,6 +52,21 @@ impl eframe::App for App {
 }
 
 impl App {
+    pub fn new(_cc: &eframe::CreationContext) -> Self {
+        let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().expect("Couldn't create multi-thread runtime");
+        let client = runtime.block_on(create_connection());
+
+        Self {
+            state: State::default(),
+            model_handler: ModelHandler::default(),
+
+            // gRPC
+            client: client,
+            runtime: runtime,
+            response: Arc::new(Mutex::new(String::from("-"))),
+        }
+    }
+
     fn menu(&mut self, ui: &mut egui::Ui) {
         egui::ScrollArea::vertical().show(ui, |ui| {
             ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
@@ -58,16 +83,34 @@ impl App {
     fn show_windows(&mut self, ctx: &egui::Context) {
         self.model_handler.windows(ctx, &mut self.state)
     }
+
+    fn spawn_upload_program_grpc(&mut self) {
+        let response_ref = self.response.clone();
+        let client = self.client.clone();
+
+        self.runtime.spawn(async move {
+            Self::upload_program_grpc(response_ref, client).await
+        });
+    }
+
+    async fn upload_program_grpc(response: Arc<Mutex<String>>, mut client: ScaraClient<tonic::transport::Channel>) {
+        let request = proto::UploadProgramRequest {program: "program string".to_owned()};
+
+        match client.upload_program(request).await {
+            Ok(_) => *response.lock().unwrap() = "Successful gRPC request".to_owned(),
+            Err(e) => println!("grpc request error: {}", e.to_string())
+        }
+    }
 }
 
 struct State {
-    program: Vec<String>
+    program: Vec<String>,
 }
 
 impl Default for State {
     fn default() -> Self {
         Self {
-            program: Vec::new()
+            program: Vec::new(),
         }
     }
 }
@@ -178,13 +221,14 @@ impl Model for StepControlModel {
             ui.end_row();
         });
 
-        ui.code(format!(
-            "j1={} j2={}",
-            self.j1, self.j2
-        ));
+        ui.code(format!("j1={} j2={}", self.j1, self.j2));
 
         if ui.button("Send").clicked() {
             state.program.push(format!("j1={} j2={}", self.j1, self.j2));
         };
     }
+}
+
+async fn create_connection() -> ScaraClient<tonic::transport::Channel> {
+    ScaraClient::connect("http://localhost:5000").await.expect("Couldn't connect to gRPC server")
 }
